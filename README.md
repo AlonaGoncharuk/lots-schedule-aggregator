@@ -101,7 +101,56 @@ npm --version    # Should show 9.x.x or higher
 
 If you see version numbers, you're ready to proceed with the installation steps below.
 
-## Installation
+## Quick Start (Without Git)
+
+If you're not familiar with Git, follow these simple steps:
+
+1. **Download & Unzip**  
+   Download the project ZIP and extract it to your computer.
+
+2. **Open the "Lots" Folder**  
+   Open the folder you just extracted. Inside it, you will see a folder named `Lots`. Open that folder.
+
+3. **Open Terminal Here**  
+   You need to open a terminal (command prompt) window in the Lots folder. Here's how:
+   
+   - **Windows**: 
+     - Open the Lots folder in File Explorer
+     - Click on the address bar at the top (where you see the folder path)
+     - Type `cmd` and press Enter
+     - A black command prompt window will open, and you'll be in the Lots folder
+   
+   - **Mac**: 
+     - Open Finder and navigate to the Lots folder
+     - Right-click (or Control-click) on the Lots folder
+     - Select "New Terminal at Folder" from the context menu
+     - A terminal window will open, and you'll be in the Lots folder
+
+4. **Install Dependencies**  
+   In the terminal window that just opened, copy the command below, paste it into the terminal, and press Enter:
+   ```bash
+   npm install
+   ```
+   Wait for the installation to complete. This may take a few minutes.
+
+5. **Install Browsers**  
+   Copy the command below, paste it into the terminal, and press Enter:
+   ```bash
+   npx playwright install
+   ```
+   Wait for the installation to complete. This will download browser files needed for the application.
+
+6. **Run the Server**  
+   Copy the command below, paste it into the terminal, and press Enter:
+   ```bash
+   npm start
+   ```
+   You should see a message indicating the server is running. Keep this terminal window open while using the application.
+
+7. **Open the Site**  
+   Go to your browser and visit: [http://localhost:3000](http://localhost:3000)
+
+## Installation (Using Git)
 
 1. Clone this repository:
 ```bash
