@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orchestra Schedules</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Orchestra Schedules</h1>
+      <button id="updateBtn">Update</button>
+      <span id="status"></span>
+    </header>
+
+    <section class="filters">
+      <label>
+        Country
+        <select id="countryFilter" multiple></select>
+      </label>
+      <label>
+        Show
+        <select id="showFilter" multiple></select>
+      </label>
+      <label>
+        Orchestra
+        <select id="orchestraFilter" multiple></select>
+      </label>
+      <button id="clearFilters">Clear Filters</button>
+    </section>
+
+    <section>
+      <h2>Schedule</h2>
+      <table id="scheduleTable">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Country</th>
+            <th>City</th>
+            <th>Show</th>
+            <th>Orchestra</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Summary by Country & Month</h2>
+      <table id="summaryTable">
+        <thead>
+          <tr>
+            <th>Country</th>
+            <th>Month</th>
+            <th>Shows</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
+
