@@ -105,7 +105,7 @@ If you see version numbers, you're ready to proceed with the installation steps 
 
 1. Clone this repository:
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/AlonaGoncharuk/lots-schedule-aggregator.git
 cd Lots
 ```
 
