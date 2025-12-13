@@ -216,9 +216,9 @@ const exportToExcel = () => {
   }
 
   // Get filtered data (same as what's displayed)
-  const selectedCountries = Array.from(countryFilter.selectedOptions).map(o => o.value);
-  const selectedShows = Array.from(showFilter.selectedOptions).map(o => o.value.toLowerCase());
-  const selectedOrchestras = Array.from(orchestraFilter.selectedOptions).map(o => o.value);
+  const selectedCountries = Array.from(countryFilter.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+  const selectedShows = Array.from(showFilter.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value.toLowerCase());
+  const selectedOrchestras = Array.from(orchestraFilter.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
 
   const filtered = allShows.filter(item => {
     const matchCountry = selectedCountries.length ? selectedCountries.includes(item.country) : true;
