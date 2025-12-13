@@ -65,6 +65,10 @@ section {
   min-width: 200px;
 }
 
+.filter-group button {
+  align-self: flex-start;
+}
+
 .filter-label {
   color: var(--muted);
   font-size: 14px;

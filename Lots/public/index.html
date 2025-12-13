@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Orchestra Schedules</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
   <div class="container">
     <header>
       <h1>Orchestra Schedules</h1>
       <button id="updateBtn">Update</button>
+      <button id="exportBtn" disabled>Export to Excel</button>
       <span id="status"></span>
     </header>
 
@@ -27,7 +29,10 @@
         <label class="filter-label">Orchestra</label>
         <div id="orchestraFilter" class="filter-checkboxes"></div>
       </div>
-      <button id="clearFilters">Clear Filters</button>
+      <div class="filter-group">
+        <label class="filter-label" style="visibility: hidden;">Clear</label>
+        <button id="clearFilters">Clear Filters</button>
+      </div>
     </section>
 
     <section>

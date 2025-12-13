@@ -4,6 +4,7 @@ const countryFilter = document.querySelector('#countryFilter');
 const showFilter = document.querySelector('#showFilter');
 const orchestraFilter = document.querySelector('#orchestraFilter');
 const updateBtn = document.querySelector('#updateBtn');
+const exportBtn = document.querySelector('#exportBtn');
 const clearFiltersBtn = document.querySelector('#clearFilters');
 const statusEl = document.querySelector('#status');
 
@@ -203,10 +204,96 @@ const fetchData = async () => {
     }
   } finally {
     updateBtn.disabled = false;
+    exportBtn.disabled = allShows.length === 0;
   }
 };
 
+const exportToExcel = () => {
+  if (allShows.length === 0) {
+    alert('No data to export. Please update the schedule first.');
+    return;
+  }
+
+  // Get filtered data (same as what's displayed)
+  const selectedCountries = Array.from(countryFilter.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+  const selectedShows = Array.from(showFilter.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value.toLowerCase());
+  const selectedOrchestras = Array.from(orchestraFilter.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+
+  const filtered = allShows.filter(item => {
+    const matchCountry = selectedCountries.length ? selectedCountries.includes(item.country) : true;
+    const matchShow = selectedShows.length ? selectedShows.includes(item.show.toLowerCase()) : true;
+    const matchOrchestra = selectedOrchestras.length ? selectedOrchestras.includes(item.orchestra) : true;
+    return matchCountry && matchShow && matchOrchestra;
+  });
+
+  // Prepare Schedule data
+  const scheduleData = filtered.map(show => ({
+    'Date': show.dateLabel,
+    'Country': show.country,
+    'City': show.city,
+    'Show': show.show,
+    'Orchestra': show.orchestra
+  }));
+
+  // Prepare Summary data
+  const summary = {};
+  filtered.forEach(show => {
+    const d = new Date(show.dateISO);
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (!summary[show.country]) summary[show.country] = { total: 0, months: {} };
+    summary[show.country].total += 1;
+    summary[show.country].months[month] = (summary[show.country].months[month] || 0) + 1;
+  });
+
+  const summaryData = [];
+  Object.entries(summary).forEach(([country, data]) => {
+    const months = Object.entries(data.months).sort();
+    if (months.length === 0) {
+      summaryData.push({
+        'Country': country,
+        'Month': '-',
+        'Shows': 0
+      });
+    } else {
+      months.forEach(([month, count]) => {
+        const monthLabelParts = month.split('-');
+        const monthLabel = `${monthNames[Number(monthLabelParts[1]) - 1]} ${monthLabelParts[0]}`;
+        summaryData.push({
+          'Country': country,
+          'Month': monthLabel,
+          'Shows': count
+        });
+      });
+      summaryData.push({
+        'Country': country,
+        'Month': 'Total',
+        'Shows': data.total
+      });
+    }
+  });
+
+  // Create workbook
+  const wb = XLSX.utils.book_new();
+
+  // Create Schedule worksheet
+  const scheduleWs = XLSX.utils.json_to_sheet(scheduleData);
+  XLSX.utils.book_append_sheet(wb, scheduleWs, 'Schedule');
+
+  // Create Summary worksheet
+  const summaryWs = XLSX.utils.json_to_sheet(summaryData);
+  XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+
+  // Generate filename with timestamp
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+  const filename = `orchestra-schedules-${timestamp}.xlsx`;
+
+  // Download file
+  XLSX.writeFile(wb, filename);
+  setStatus(`Exported ${scheduleData.length} schedule entries and ${summaryData.length} summary rows to ${filename}`);
+};
+
 updateBtn.addEventListener('click', fetchData);
+exportBtn.addEventListener('click', exportToExcel);
 clearFiltersBtn.addEventListener('click', () => {
   countryFilter.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
   showFilter.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
