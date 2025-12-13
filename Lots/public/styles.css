@@ -53,25 +53,63 @@ section {
 
 .filters {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: wrap;
+  align-items: flex-start;
 }
 
-label {
+.filter-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  color: var(--muted);
-  font-size: 14px;
+  gap: 8px;
+  min-width: 200px;
 }
 
-select {
-  min-width: 160px;
+.filter-label {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.filter-checkboxes {
   background: #0b1221;
-  color: var(--text);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 6px;
+  padding: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.filter-checkbox-item:hover {
+  background-color: rgba(56, 189, 248, 0.1);
+}
+
+.filter-checkbox-item input[type="checkbox"] {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.filter-checkbox-item label {
+  cursor: pointer;
+  color: var(--text);
+  font-size: 14px;
+  flex: 1;
+  user-select: none;
 }
 
 table {
