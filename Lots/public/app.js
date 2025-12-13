@@ -32,20 +32,34 @@ const setStatus = (text) => {
   statusEl.textContent = text;
 };
 
-const renderOptions = (selectEl, options) => {
-  selectEl.innerHTML = '';
+const renderCheckboxes = (containerEl, options, filterType) => {
+  containerEl.innerHTML = '';
   options.forEach(opt => {
-    const option = document.createElement('option');
-    option.value = opt;
-    option.textContent = opt;
-    selectEl.appendChild(option);
+    const checkboxItem = document.createElement('div');
+    checkboxItem.className = 'filter-checkbox-item';
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = `${filterType}-${opt.replace(/\s+/g, '-').toLowerCase()}`;
+    checkbox.value = opt;
+    
+    const label = document.createElement('label');
+    label.htmlFor = checkbox.id;
+    label.textContent = opt;
+    
+    checkboxItem.appendChild(checkbox);
+    checkboxItem.appendChild(label);
+    
+    checkbox.addEventListener('change', applyFilters);
+    
+    containerEl.appendChild(checkboxItem);
   });
 };
 
 const applyFilters = () => {
-  const selectedCountries = Array.from(countryFilter.selectedOptions).map(o => o.value);
-  const selectedShows = Array.from(showFilter.selectedOptions).map(o => o.value.toLowerCase());
-  const selectedOrchestras = Array.from(orchestraFilter.selectedOptions).map(o => o.value);
+  const selectedCountries = Array.from(countryFilter.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+  const selectedShows = Array.from(showFilter.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value.toLowerCase());
+  const selectedOrchestras = Array.from(orchestraFilter.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
 
   const filtered = allShows.filter(item => {
     const matchCountry = selectedCountries.length ? selectedCountries.includes(item.country) : true;
@@ -143,9 +157,9 @@ const populateFilters = (shows) => {
   const showsList = Array.from(showMap.values()).sort();
   
   const orchestras = Array.from(new Set(shows.map(s => s.orchestra))).sort();
-  renderOptions(countryFilter, countries);
-  renderOptions(showFilter, showsList);
-  renderOptions(orchestraFilter, orchestras);
+  renderCheckboxes(countryFilter, countries, 'country');
+  renderCheckboxes(showFilter, showsList, 'show');
+  renderCheckboxes(orchestraFilter, orchestras, 'orchestra');
 };
 
 const fetchData = async () => {
@@ -282,15 +296,11 @@ const exportToExcel = () => {
 updateBtn.addEventListener('click', fetchData);
 exportBtn.addEventListener('click', exportToExcel);
 clearFiltersBtn.addEventListener('click', () => {
-  countryFilter.selectedIndex = -1;
-  showFilter.selectedIndex = -1;
-  orchestraFilter.selectedIndex = -1;
+  countryFilter.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+  showFilter.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+  orchestraFilter.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
   applyFilters();
 });
-
-countryFilter.addEventListener('change', applyFilters);
-showFilter.addEventListener('change', applyFilters);
-orchestraFilter.addEventListener('change', applyFilters);
 
 fetchData();
 
