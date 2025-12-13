@@ -166,6 +166,7 @@ const fetchData = async () => {
   const startTime = Date.now();
   setStatus('Updating... This may take 1-2 minutes...');
   updateBtn.disabled = true;
+  exportBtn.disabled = true;
   
   // Add a timeout for the fetch
   const controller = new AbortController();
@@ -204,7 +205,7 @@ const fetchData = async () => {
     }
   } finally {
     updateBtn.disabled = false;
-    exportBtn.disabled = allShows.length === 0;
+    exportBtn.disabled = false;
   }
 };
 
@@ -215,9 +216,9 @@ const exportToExcel = () => {
   }
 
   // Get filtered data (same as what's displayed)
-  const selectedCountries = Array.from(countryFilter.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-  const selectedShows = Array.from(showFilter.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value.toLowerCase());
-  const selectedOrchestras = Array.from(orchestraFilter.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+  const selectedCountries = Array.from(countryFilter.selectedOptions).map(o => o.value);
+  const selectedShows = Array.from(showFilter.selectedOptions).map(o => o.value.toLowerCase());
+  const selectedOrchestras = Array.from(orchestraFilter.selectedOptions).map(o => o.value);
 
   const filtered = allShows.filter(item => {
     const matchCountry = selectedCountries.length ? selectedCountries.includes(item.country) : true;
