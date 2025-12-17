@@ -7,6 +7,7 @@ const updateBtn = document.querySelector('#updateBtn');
 const exportBtn = document.querySelector('#exportBtn');
 const clearFiltersBtn = document.querySelector('#clearFilters');
 const statusEl = document.querySelector('#status');
+const loadingIndicator = document.querySelector('#loadingIndicator');
 
 let allShows = [];
 let countryColors = {};
@@ -30,6 +31,14 @@ const getCountryColor = (country) => {
 
 const setStatus = (text) => {
   statusEl.textContent = text;
+};
+
+const showLoading = () => {
+  loadingIndicator.style.display = 'flex';
+};
+
+const hideLoading = () => {
+  loadingIndicator.style.display = 'none';
 };
 
 const renderCheckboxes = (containerEl, options, filterType) => {
@@ -162,23 +171,68 @@ const populateFilters = (shows) => {
   renderCheckboxes(orchestraFilter, orchestras, 'orchestra');
 };
 
-const fetchData = async () => {
+const fetchData = async (retryCount = 0, forceRefresh = false) => {
   const startTime = Date.now();
+  const maxRetries = 2;
+  let willRetry = false; // Flag to track if we're about to retry
   setStatus('Updating... This may take 1-2 minutes...');
   updateBtn.disabled = true;
   exportBtn.disabled = true;
+  showLoading();
   
-  // Add a timeout for the fetch
+  // Add a timeout for the fetch - longer timeout for mobile networks
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout
   
   try {
-    const res = await fetch('/api/schedule', { signal: controller.signal });
+    // Use absolute URL if on mobile to avoid relative path issues
+    // Add refresh parameter to force new scrape when Update button is clicked
+    const apiUrl = window.location.origin + '/api/schedule' + (forceRefresh ? '?refresh=true' : '');
+    
+    const res = await fetch(apiUrl, { 
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
+      }
+    });
     clearTimeout(timeoutId);
     
     if (!res.ok) {
-      const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(errorData.error || `HTTP ${res.status}`);
+      let errorMessage = `HTTP ${res.status}`;
+      let errorDetails = '';
+      const httpStatus = res.status;
+      
+      // Try to parse error response
+      try {
+        const errorData = await res.json();
+        errorMessage = errorData.error || errorData.details || errorMessage;
+        errorDetails = errorData.details || '';
+      } catch (e) {
+        // If JSON parsing fails, try to get text
+        try {
+          const text = await res.text();
+          if (text) {
+            errorDetails = text.substring(0, 200); // Limit length
+          }
+        } catch (e2) {
+          // Ignore
+        }
+        
+        // Provide specific messages for common status codes
+        if (res.status === 503) {
+          errorMessage = 'Service Unavailable - The server is temporarily overloaded or down';
+        } else if (res.status === 504) {
+          errorMessage = 'Gateway Timeout - The request took too long to process';
+        } else if (res.status === 500) {
+          errorMessage = 'Internal Server Error - The server encountered an error';
+        }
+      }
+      
+      const fullError = errorDetails ? `${errorMessage}: ${errorDetails}` : errorMessage;
+      const error = new Error(fullError);
+      error.httpStatus = httpStatus; // Store status for retry logic
+      throw error;
     }
     const data = await res.json();
     allShows = data.shows || [];
@@ -190,22 +244,64 @@ const fetchData = async () => {
     if (allShows.length === 0) {
       setStatus(`No shows found (${loadTime}s). Check server console for details.`);
     } else {
-      setStatus(`Loaded ${allShows.length} shows in ${loadTime}s`);
+      if (data.fromCache) {
+        const cacheAge = data.cacheAge || 0;
+        const cacheMinutes = Math.round(cacheAge / 60);
+        setStatus(`Loaded ${allShows.length} shows from cache (${cacheMinutes}m old, ${loadTime}s)`);
+      } else {
+        setStatus(`Loaded ${allShows.length} shows in ${loadTime}s`);
+      }
     }
   } catch (err) {
     clearTimeout(timeoutId);
     const loadTime = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.error(err);
+    console.error('Fetch error:', err);
+    console.error('Error name:', err.name);
+    console.error('Error message:', err.message);
+    console.error('Error stack:', err.stack);
+    
+    // Check for network-related errors that should be retried
+    const isNetworkError = err.name === 'TypeError' || 
+                          err.name === 'NetworkError' || 
+                          err.message.includes('Failed to fetch') ||
+                          err.message.includes('network') ||
+                          err.message.includes('Network request failed') ||
+                          err.message.includes('Load failed');
+    
+    // Also retry on 503 (Service Unavailable) and 504 (Gateway Timeout) errors
+    const isRetryableHttpError = err.httpStatus === 503 || err.httpStatus === 504;
+    
+    if ((isNetworkError || isRetryableHttpError) && retryCount < maxRetries) {
+      willRetry = true; // Set flag to indicate we're retrying
+      const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Exponential backoff, max 5s
+      setStatus(`Network error. Retrying in ${retryDelay/1000}s... (attempt ${retryCount + 1}/${maxRetries})`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+      return fetchData(retryCount + 1, forceRefresh);
+    }
+    
     if (err.name === 'AbortError') {
       setStatus(`Request timed out after ${loadTime}s. The server may still be processing. Please wait and try again.`);
       alert('The request took too long. This might be because there are many countries to scrape. Please check the server logs and try again in a moment.');
+    } else if (isNetworkError) {
+      // Detect if on mobile device
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const mobileMessage = isMobile 
+        ? '\n\nYou\'re on a mobile device. Mobile networks can be unstable. Please:\n1. Check your internet connection\n2. Try again when you have a stronger signal\n3. If on WiFi, try switching to mobile data or vice versa\n4. Make sure you\'re not in a low-signal area'
+        : '\n\nPlease check your internet connection and try again.';
+      
+      setStatus(`Network error: ${err.message} (${loadTime}s)`);
+      alert(`Failed to load schedule due to network error: ${err.message}${mobileMessage}`);
     } else {
       setStatus(`Error: ${err.message} (${loadTime}s)`);
-      alert(`Failed to load schedule: ${err.message}\n\nCheck the browser console (F12) and server logs for more details.`);
+      alert(`Failed to load schedule: ${err.message}\n\nCheck the browser console and server logs for more details.`);
     }
   } finally {
     updateBtn.disabled = false;
     exportBtn.disabled = false;
+    // Only hide loading if we're not retrying
+    if (!willRetry) {
+      hideLoading();
+    }
   }
 };
 
@@ -293,7 +389,7 @@ const exportToExcel = () => {
   setStatus(`Exported ${scheduleData.length} schedule entries and ${summaryData.length} summary rows to ${filename}`);
 };
 
-updateBtn.addEventListener('click', fetchData);
+updateBtn.addEventListener('click', () => fetchData(0, true)); // Force refresh when Update button is clicked
 exportBtn.addEventListener('click', exportToExcel);
 clearFiltersBtn.addEventListener('click', () => {
   countryFilter.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
@@ -302,5 +398,5 @@ clearFiltersBtn.addEventListener('click', () => {
   applyFilters();
 });
 
-fetchData();
+fetchData(); // Initial load uses cache if available
 

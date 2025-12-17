@@ -34,11 +34,19 @@ The schedules are combined into a single table with the following features:
   - Number of shows per month per country
   - Total shows per country
 - **Live Updates**: Click the "Update" button to fetch the latest schedules from source websites
+  - **Force Refresh**: The Update button always fetches fresh data, bypassing the cache
+  - **Smart Caching**: Initial page load uses cached data (if available) for faster response
+  - **Request Queuing**: Multiple simultaneous requests are intelligently queued and share results to prevent server overload
 - **Export to Excel**: Download the filtered schedule and summary data as an Excel file (.xlsx) with two worksheets:
   - Schedule worksheet with all filtered concert entries
   - Summary worksheet with monthly breakdown by country
 - **Load Time Display**: Shows how long it took to fetch and process the data
-- **Mobile Responsive**: Fully responsive design that works seamlessly on mobile phones, tablets, and desktop browsers with touch-friendly controls and optimized layouts
+- **Loading Indicator**: Visual spinner and status message displayed while data is being fetched
+- **Mobile Optimized**: 
+  - Fully responsive design that works seamlessly on mobile phones, tablets, and desktop browsers
+  - Automatic retry logic for network failures (up to 2 retries with exponential backoff)
+  - Enhanced error handling for mobile network issues
+  - Touch-friendly controls and optimized layouts
 
 ## Technology Stack
 
@@ -189,7 +197,20 @@ http://localhost:3000
 2. **Data Normalization**: Dates are parsed from European format (DD.MM.YYYY) and normalized to a consistent format
 3. **Column Detection**: The scraper identifies table columns by header names rather than fixed positions, making it robust to layout changes
 4. **Data Merging**: Schedules from both orchestras are combined and sorted by date, then by country
-5. **Frontend Display**: The browser displays the data in filterable tables with color coding and summary statistics
+5. **Caching System**: 
+   - Results are cached for 10 minutes to reduce server load
+   - Initial page loads use cached data when available for faster response
+   - Update button forces a fresh scrape, bypassing the cache
+6. **Request Management**:
+   - Queue system handles multiple simultaneous requests intelligently
+   - Up to 2 concurrent scrapes allowed to prevent server overload
+   - Simultaneous requests share the same scrape result instead of creating duplicates
+   - Additional requests wait in queue and are processed as capacity becomes available
+7. **Error Handling**:
+   - Automatic retry logic for network failures (mobile-friendly)
+   - Stale cache fallback if scraping fails
+   - Detailed error messages for troubleshooting
+8. **Frontend Display**: The browser displays the data in filterable tables with color coding and summary statistics, with a loading indicator during data fetching
 
 ## Project Structure
 
@@ -212,14 +233,32 @@ Lots/
 
 - `GET /` - Serves the main HTML page
 - `GET /api/schedule` - Fetches and returns combined schedule data
+  - Query Parameters:
+    - `refresh=true` (optional) - Forces a fresh scrape, bypassing the cache
   - Returns: `{ shows: [...], summary: {...}, loadTime: "X.X" }`
+  - Behavior:
+    - Uses cached data if available and less than 10 minutes old (unless `refresh=true`)
+    - Queues requests if server is at capacity (max 2 concurrent scrapes)
+    - Shares in-progress scrape results with simultaneous requests
+    - Returns stale cache as fallback if scraping fails
 
 ## Notes
 
-- The scraping process may take 1-2 minutes as it needs to load multiple pages
-- Dates are parsed in European format (DD.MM.YYYY)
-- Show names are normalized to handle case differences (e.g., "The Music Of Hans Zimmer" and "The Music of Hans Zimmer" are treated as the same show)
-- The application requires network access to fetch data from the source websites
+- **Performance**:
+  - The scraping process may take 1-2 minutes as it needs to load multiple pages
+  - Initial page load uses cached data (if available) for faster response
+  - Update button always fetches fresh data
+  - Multiple simultaneous requests are handled efficiently through queuing and result sharing
+- **Data Format**:
+  - Dates are parsed in European format (DD.MM.YYYY)
+  - Show names are normalized to handle case differences (e.g., "The Music Of Hans Zimmer" and "The Music of Hans Zimmer" are treated as the same show)
+- **Network Requirements**:
+  - The application requires network access to fetch data from the source websites
+  - Mobile networks are supported with automatic retry logic for unstable connections
+- **Concurrency**:
+  - Server supports up to 2 concurrent scrapes to prevent overload
+  - Additional requests are queued and processed as capacity becomes available
+  - Simultaneous requests from multiple users share the same scrape result
 
 ## License
 
