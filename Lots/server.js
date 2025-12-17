@@ -8,7 +8,108 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// Request management: queue system with concurrency limit
+let cachedData = null;
+let cacheTimestamp = null;
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes cache
+
+// Queue system for handling multiple concurrent requests
+const MAX_CONCURRENT_SCRAPES = 2; // Reduced to 2 to prevent overload
+let activeScrapes = 0; // Current number of active scrapes
+const scrapeQueue = []; // Queue of pending requests
+let currentScrapePromise = null; // Track the current scrape promise to share results
+
+// Helper to process the queue
+function processQueue() {
+  // If we're at max capacity or queue is empty, do nothing
+  if (activeScrapes >= MAX_CONCURRENT_SCRAPES || scrapeQueue.length === 0) {
+    return;
+  }
+  
+  // Get next request from queue
+  const { resolve, reject, startTime } = scrapeQueue.shift();
+  activeScrapes++;
+  
+  // Start the scrape
+  const scrapePromise = performScrape(startTime);
+  currentScrapePromise = scrapePromise; // Store for sharing
+  
+  // Handle completion
+  scrapePromise
+    .then((data) => {
+      activeScrapes--;
+      currentScrapePromise = null; // Clear when done
+      resolve(data);
+      // Process next in queue
+      processQueue();
+    })
+    .catch((err) => {
+      activeScrapes--;
+      currentScrapePromise = null; // Clear on error
+      reject(err);
+      // Process next in queue
+      processQueue();
+    });
+}
+
+// Perform the actual scraping
+async function performScrape(startTime) {
+  try {
+    console.log(`Starting scrape (${activeScrapes}/${MAX_CONCURRENT_SCRAPES} active)...`);
+    
+    // Add timeout wrapper
+    const scrapeWithTimeout = async (scraper, timeoutMs) => {
+      return Promise.race([
+        scraper(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Scraping timeout')), timeoutMs)
+        )
+      ]);
+    };
+    
+    const [samurai, lords] = await Promise.all([
+      scrapeWithTimeout(scrape38Samurai, 60000), // 1 minute for 38Samurai
+      scrapeWithTimeout(scrapeLordsAll, 240000)   // 4 minutes for Lords (many countries)
+    ]);
+    
+    const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`Scraped ${samurai.length} from 38Samurai, ${lords.length} from Lords in ${elapsedSeconds}s`);
+    const combined = sortShows([...samurai, ...lords]);
+    const summary = summarizeByCountryMonth(combined);
+    
+    const result = { shows: combined, summary, loadTime: elapsedSeconds };
+    
+    // Cache the result (only update if this is the latest)
+    cachedData = result;
+    cacheTimestamp = Date.now();
+    
+    return result;
+  } catch (err) {
+    const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.error(`Scrape error after ${elapsedSeconds}s:`, err);
+    console.error('Error stack:', err.stack);
+    throw err;
+  }
+}
+
+// Enhanced CORS configuration for mobile browsers
+app.use(cors({
+  origin: true, // Allow all origins
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Accept', 'Cache-Control']
+}));
+
+// Add headers to help with mobile connectivity
+app.use((req, res, next) => {
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Keep-Alive', 'timeout=300');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -555,35 +656,86 @@ app.get('/api/schedule', async (req, res) => {
   req.setTimeout(300000); // 5 minutes
   res.setTimeout(300000);
   
-  const startTime = Date.now();
+  // Check cache first
+  const forceRefresh = req.query.refresh === 'true';
+  const now = Date.now();
+  if (!forceRefresh && cachedData && cacheTimestamp && (now - cacheTimestamp) < CACHE_TTL) {
+    console.log('Returning cached data');
+    return res.json(cachedData);
+  }
   
-  try {
-    console.log('Starting scrape...');
-    
-    // Add timeout wrapper
-    const scrapeWithTimeout = async (scraper, timeoutMs) => {
-      return Promise.race([
-        scraper(),
+  console.log(`Request from ${req.ip}, User-Agent: ${req.get('user-agent')}`);
+  console.log(`Queue status: ${scrapeQueue.length} waiting, ${activeScrapes}/${MAX_CONCURRENT_SCRAPES} active, forceRefresh: ${forceRefresh}`);
+  
+  // If a scrape is already in progress, share that result instead of starting a new one
+  // This prevents duplicate scrapes when multiple users click Update simultaneously
+  if (currentScrapePromise && activeScrapes > 0) {
+    console.log('Scrape already in progress, sharing result with new request...');
+    try {
+      const sharedData = await Promise.race([
+        currentScrapePromise,
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Scraping timeout')), timeoutMs)
+          setTimeout(() => reject(new Error('Wait timeout')), 300000)
         )
       ]);
-    };
+      return res.json(sharedData);
+    } catch (err) {
+      // If shared scrape failed, fall through to queue system
+      console.log('Shared scrape failed, adding to queue...');
+    }
+  }
+  
+  // Create a promise that will be resolved when this request's scrape completes
+  const startTime = Date.now();
+  let timeoutId = null;
+  
+  const scrapeData = await new Promise((resolve, reject) => {
+    // Set timeout for waiting in queue + scraping
+    timeoutId = setTimeout(() => {
+      const index = scrapeQueue.findIndex(item => item.resolve === resolve);
+      if (index !== -1) {
+        scrapeQueue.splice(index, 1);
+        reject(new Error('Request timeout - took too long to process'));
+      }
+    }, 300000); // 5 minute total timeout
     
-    const [samurai, lords] = await Promise.all([
-      scrapeWithTimeout(scrape38Samurai, 60000), // 1 minute for 38Samurai
-      scrapeWithTimeout(scrapeLordsAll, 240000)   // 4 minutes for Lords (many countries)
-    ]);
+    // Add to queue
+    scrapeQueue.push({ 
+      resolve: (data) => {
+        clearTimeout(timeoutId);
+        resolve(data);
+      }, 
+      reject: (err) => {
+        clearTimeout(timeoutId);
+        reject(err);
+      }, 
+      startTime 
+    });
     
-    const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`Scraped ${samurai.length} from 38Samurai, ${lords.length} from Lords in ${elapsedSeconds}s`);
-    const combined = sortShows([...samurai, ...lords]);
-    const summary = summarizeByCountryMonth(combined);
-    res.json({ shows: combined, summary, loadTime: elapsedSeconds });
+    // Try to process queue (will start if under limit)
+    processQueue();
+  }).catch(async (err) => {
+    // If scrape failed, try to return stale cache as fallback
+    if (cachedData && cacheTimestamp && (Date.now() - cacheTimestamp) < CACHE_TTL * 2) {
+      console.log('Scrape failed, returning stale cache as fallback...');
+      return { ...cachedData, fromCache: true, cacheAge: Math.round((Date.now() - cacheTimestamp) / 1000) };
+    }
+    throw err;
+  });
+  
+  try {
+    res.json(scrapeData);
   } catch (err) {
     const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.error(`API error after ${elapsedSeconds}s:`, err);
-    res.status(500).json({ error: 'Failed to fetch schedules', details: err.message, loadTime: elapsedSeconds });
+    console.error(`Error sending response after ${elapsedSeconds}s:`, err);
+    
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Failed to fetch schedules', 
+        details: err.message, 
+        loadTime: elapsedSeconds 
+      });
+    }
   }
 });
 
