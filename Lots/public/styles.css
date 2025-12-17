@@ -13,12 +13,14 @@ body {
   font-family: Inter, system-ui, -apple-system, sans-serif;
   background: var(--bg);
   color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 16px;
 }
 
 header {
@@ -26,6 +28,14 @@ header {
   gap: 12px;
   align-items: center;
   margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+header h1 {
+  font-size: 24px;
+  margin: 0;
+  flex: 1;
+  min-width: 200px;
 }
 
 button {
@@ -33,9 +43,17 @@ button {
   color: #0b1221;
   border: none;
   border-radius: 6px;
-  padding: 8px 14px;
+  padding: 10px 16px;
   font-weight: 600;
   cursor: pointer;
+  font-size: 14px;
+  min-height: 44px; /* Minimum touch target size */
+  touch-action: manipulation; /* Prevents double-tap zoom on mobile */
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+button:active {
+  transform: scale(0.98);
 }
 
 button:disabled {
@@ -49,6 +67,13 @@ section {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 16px;
+  overflow-x: auto; /* Allow horizontal scroll on mobile */
+}
+
+section h2 {
+  font-size: 20px;
+  margin-top: 0;
+  margin-bottom: 12px;
 }
 
 .filters {
@@ -62,7 +87,8 @@ section {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-width: 200px;
+  min-width: 150px;
+  flex: 1 1 auto;
 }
 
 .filter-group button {
@@ -85,27 +111,31 @@ section {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 .filter-checkbox-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px;
+  padding: 8px;
   cursor: pointer;
   border-radius: 4px;
   transition: background-color 0.2s;
+  min-height: 40px; /* Better touch target */
 }
 
-.filter-checkbox-item:hover {
+.filter-checkbox-item:hover,
+.filter-checkbox-item:active {
   background-color: rgba(56, 189, 248, 0.1);
 }
 
 .filter-checkbox-item input[type="checkbox"] {
   cursor: pointer;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   accent-color: var(--accent);
+  flex-shrink: 0;
 }
 
 .filter-checkbox-item label {
@@ -114,23 +144,37 @@ section {
   font-size: 14px;
   flex: 1;
   user-select: none;
+  line-height: 1.4;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 10px;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 10px;
+  min-width: 600px; /* Minimum width to prevent cramping */
 }
 
 th, td {
-  padding: 10px;
+  padding: 12px 8px;
   text-align: left;
   border-bottom: 1px solid var(--border);
+  font-size: 14px;
 }
 
 th {
   color: var(--muted);
   font-weight: 600;
+  white-space: nowrap;
+}
+
+td {
+  word-wrap: break-word;
+  max-width: 200px;
 }
 
 tbody tr:hover {
@@ -140,6 +184,106 @@ tbody tr:hover {
 #status {
   color: var(--muted);
   font-size: 14px;
+  word-break: break-word;
+}
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+  .container {
+    padding: 12px;
+  }
+
+  header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  header h1 {
+    font-size: 22px;
+    min-width: auto;
+  }
+
+  header button {
+    width: 100%;
+    margin: 0;
+  }
+
+  section {
+    padding: 12px;
+    margin-top: 16px;
+  }
+
+  section h2 {
+    font-size: 18px;
+  }
+
+  .filters {
+    gap: 12px;
+  }
+
+  .filter-group {
+    min-width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .filter-checkboxes {
+    max-height: 150px;
+  }
+
+  th, td {
+    padding: 10px 6px;
+    font-size: 13px;
+  }
+
+  td {
+    max-width: 150px;
+  }
+
+  table {
+    min-width: 500px;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 8px;
+  }
+
+  header h1 {
+    font-size: 20px;
+  }
+
+  button {
+    padding: 12px 16px;
+    font-size: 15px;
+  }
+
+  section {
+    padding: 10px;
+    border-radius: 8px;
+  }
+
+  section h2 {
+    font-size: 16px;
+  }
+
+  th, td {
+    padding: 8px 4px;
+    font-size: 12px;
+  }
+
+  table {
+    min-width: 450px;
+  }
+
+  .filter-label {
+    font-size: 13px;
+  }
+
+  .filter-checkbox-item label {
+    font-size: 13px;
+  }
 }
 
 
