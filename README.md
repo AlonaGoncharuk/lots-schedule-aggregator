@@ -2,6 +2,11 @@
 
 A web application that aggregates and displays concert schedules from multiple orchestra websites in a unified, filterable interface.
 
+## Live Application
+
+The application is deployed and publicly accessible at:
+**https://lots-schedule-aggregator-353527988398.us-central1.run.app**
+
 ## Overview
 
 This application scrapes tour schedules from two orchestra websites:
@@ -14,6 +19,7 @@ The schedules are combined into a single table with the following features:
 - Color-coded rows by country
 - Summary statistics showing shows per month per country
 - Live data fetching with an Update button
+- Export to Excel functionality for downloading filtered data
 
 ## Features
 
@@ -28,6 +34,9 @@ The schedules are combined into a single table with the following features:
   - Number of shows per month per country
   - Total shows per country
 - **Live Updates**: Click the "Update" button to fetch the latest schedules from source websites
+- **Export to Excel**: Download the filtered schedule and summary data as an Excel file (.xlsx) with two worksheets:
+  - Schedule worksheet with all filtered concert entries
+  - Summary worksheet with monthly breakdown by country
 - **Load Time Display**: Shows how long it took to fetch and process the data
 
 ## Technology Stack
@@ -36,6 +45,7 @@ The schedules are combined into a single table with the following features:
 - **Web Scraping**: Playwright (for JavaScript-rendered content)
 - **HTML Parsing**: Cheerio
 - **Frontend**: Vanilla JavaScript, HTML, CSS
+- **Excel Export**: SheetJS (XLSX.js) for generating Excel files
 
 ## Prerequisites
 
@@ -101,56 +111,7 @@ npm --version    # Should show 9.x.x or higher
 
 If you see version numbers, you're ready to proceed with the installation steps below.
 
-## Quick Start (Without Git)
-
-If you're not familiar with Git, follow these simple steps:
-
-1. **Download & Unzip**  
-   Download the project ZIP and extract it to your computer.
-
-2. **Open the "Lots" Folder**  
-   Open the folder you just extracted. Inside it, you will see a folder named `Lots`. Open that folder.
-
-3. **Open Terminal Here**  
-   You need to open a terminal (command prompt) window in the Lots folder. Here's how:
-   
-   - **Windows**: 
-     - Open the Lots folder in File Explorer
-     - Click on the address bar at the top (where you see the folder path)
-     - Type `cmd` and press Enter
-     - A black command prompt window will open, and you'll be in the Lots folder
-   
-   - **Mac**: 
-     - Open Finder and navigate to the Lots folder
-     - Right-click (or Control-click) on the Lots folder
-     - Select "New Terminal at Folder" from the context menu
-     - A terminal window will open, and you'll be in the Lots folder
-
-4. **Install Dependencies**  
-   In the terminal window that just opened, copy the command below, paste it into the terminal, and press Enter:
-   ```bash
-   npm install
-   ```
-   Wait for the installation to complete. This may take a few minutes.
-
-5. **Install Browsers**  
-   Copy the command below, paste it into the terminal, and press Enter:
-   ```bash
-   npx playwright install
-   ```
-   Wait for the installation to complete. This will download browser files needed for the application.
-
-6. **Run the Server**  
-   Copy the command below, paste it into the terminal, and press Enter:
-   ```bash
-   npm start
-   ```
-   You should see a message indicating the server is running. Keep this terminal window open while using the application.
-
-7. **Open the Site**  
-   Go to your browser and visit: [http://localhost:3000](http://localhost:3000)
-
-## Installation (Using Git)
+## Installation
 
 1. Clone this repository:
 ```bash
@@ -186,6 +147,8 @@ http://localhost:3000
 ```
 
 3. Click the **"Update"** button to fetch the latest schedules from both orchestra websites.
+
+4. Use the **"Export to Excel"** button to download the filtered data as an Excel file. The export includes both the schedule table and the summary statistics in separate worksheets.
 
 ## How It Works
 
