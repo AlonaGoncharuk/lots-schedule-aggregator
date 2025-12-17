@@ -38,17 +38,24 @@ The schedules are combined into a single table with the following features:
   - Schedule worksheet with all filtered concert entries
   - Summary worksheet with monthly breakdown by country
 - **Load Time Display**: Shows how long it took to fetch and process the data
+- **Mobile Responsive**: Fully responsive design that works seamlessly on mobile phones, tablets, and desktop browsers with touch-friendly controls and optimized layouts
 
 ## Technology Stack
 
 - **Backend**: Node.js with Express
 - **Web Scraping**: Playwright (for JavaScript-rendered content)
 - **HTML Parsing**: Cheerio
-- **Frontend**: Vanilla JavaScript, HTML, CSS
+- **Frontend**: Vanilla JavaScript, HTML, CSS (responsive design)
 - **Excel Export**: SheetJS (XLSX.js) for generating Excel files
+- **Containerization**: Docker
 
 ## Prerequisites
 
+### For Docker (Recommended)
+- Docker Desktop or Docker Engine installed
+- No need to install Node.js separately
+
+### For Local Development (Without Docker)
 - Node.js (v18 or higher)
 - npm (comes with Node.js)
 
@@ -131,6 +138,30 @@ npx playwright install chromium
 
 ## Running the Application
 
+### Option 1: Running with Docker (Recommended)
+
+The application is dockerized and can be run easily with Docker:
+
+1. **Build the Docker image:**
+```bash
+cd Lots
+docker build -t lots-schedule-aggregator .
+```
+
+2. **Run the container:**
+```bash
+docker run -p 3000:8080 lots-schedule-aggregator
+```
+
+   Note: The container exposes port 8080 internally, but we map it to port 3000 on your host machine for consistency.
+
+3. **Open your browser and navigate to:**
+```
+http://localhost:3000
+```
+
+### Option 2: Running Locally (Without Docker)
+
 1. Start the server:
 ```bash
 npm start
@@ -145,6 +176,8 @@ npm run dev
 ```
 http://localhost:3000
 ```
+
+### Using the Application
 
 3. Click the **"Update"** button to fetch the latest schedules from both orchestra websites.
 
@@ -164,10 +197,13 @@ http://localhost:3000
 Lots/
 ├── server.js           # Express server and scraping logic
 ├── package.json        # Dependencies and scripts
+├── Dockerfile          # Docker configuration for containerization
+├── .dockerignore       # Files to exclude from Docker build
+├── deploy.sh           # Deployment script for GCP Cloud Run
 ├── public/
 │   ├── index.html      # Main HTML page
 │   ├── app.js          # Frontend JavaScript
-│   └── styles.css      # Styling
+│   └── styles.css      # Styling (responsive design)
 ├── .gitignore          # Git ignore rules
 └── README.md           # This file
 ```
