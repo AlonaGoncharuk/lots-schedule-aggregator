@@ -10,6 +10,7 @@ yarn-debug.log*
 yarn-error.log*
 server.log
 lerna-debug.log*
+Lots/logs/
 
 # Runtime data
 pids

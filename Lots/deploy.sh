@@ -16,6 +16,16 @@ echo "Region: $REGION"
 echo "Service: $SERVICE_NAME"
 echo ""
 
+# Run unit tests before deployment
+echo "🧪 Running unit tests..."
+cd "$(dirname "$0")"
+npm test || {
+  echo "❌ Unit tests failed. Deployment aborted."
+  exit 1
+}
+echo "✅ All tests passed!"
+echo ""
+
 # Set the GCP project
 echo "📋 Setting GCP project..."
 gcloud config set project $PROJECT_ID

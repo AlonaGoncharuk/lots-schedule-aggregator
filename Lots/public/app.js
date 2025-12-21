@@ -8,9 +8,16 @@ const exportBtn = document.querySelector('#exportBtn');
 const clearFiltersBtn = document.querySelector('#clearFilters');
 const statusEl = document.querySelector('#status');
 const loadingIndicator = document.querySelector('#loadingIndicator');
+const errorPopup = document.querySelector('#errorPopup');
+const errorMessage = document.querySelector('#errorMessage');
+const errorDetails = document.querySelector('#errorDetails');
+const errorSessionId = document.querySelector('#errorSessionId');
+const closeErrorPopup = document.querySelector('#closeErrorPopup');
+const downloadLogsBtn = document.querySelector('#downloadLogsBtn');
 
 let allShows = [];
 let countryColors = {};
+let currentSessionId = null;
 const monthNames = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
@@ -237,6 +244,12 @@ const fetchData = async (retryCount = 0, forceRefresh = false) => {
     const data = await res.json();
     allShows = data.shows || [];
     countryColors = {};
+    
+    // Store session ID if provided in response
+    if (data.sessionId) {
+      currentSessionId = data.sessionId;
+    }
+    
     populateFilters(allShows);
     applyFilters();
     
@@ -293,7 +306,7 @@ const fetchData = async (retryCount = 0, forceRefresh = false) => {
       alert(`Failed to load schedule due to network error: ${err.message}${mobileMessage}`);
     } else {
       setStatus(`Error: ${err.message} (${loadTime}s)`);
-      alert(`Failed to load schedule: ${err.message}\n\nCheck the browser console and server logs for more details.`);
+      showErrorPopup(err.message, currentSessionId);
     }
   } finally {
     updateBtn.disabled = false;
@@ -396,6 +409,55 @@ clearFiltersBtn.addEventListener('click', () => {
   showFilter.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
   orchestraFilter.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
   applyFilters();
+});
+
+// Error popup functions
+const showErrorPopup = (message, sessionId = null) => {
+  errorMessage.textContent = message;
+  
+  if (sessionId) {
+    errorSessionId.textContent = sessionId;
+    errorDetails.style.display = 'block';
+    downloadLogsBtn.onclick = () => downloadSessionLogs(sessionId);
+  } else {
+    errorDetails.style.display = 'none';
+  }
+  
+  errorPopup.style.display = 'flex';
+};
+
+const hideErrorPopup = () => {
+  errorPopup.style.display = 'none';
+};
+
+const downloadSessionLogs = async (sessionId) => {
+  try {
+    const response = await fetch(`/api/logs/${sessionId}/download`);
+    if (response.ok) {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `session-${sessionId}.log`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } else {
+      alert('Failed to download logs. The log file may not be available yet.');
+    }
+  } catch (err) {
+    console.error('Error downloading logs:', err);
+    alert('Failed to download logs: ' + err.message);
+  }
+};
+
+// Close popup handlers
+closeErrorPopup.addEventListener('click', hideErrorPopup);
+errorPopup.addEventListener('click', (e) => {
+  if (e.target === errorPopup) {
+    hideErrorPopup();
+  }
 });
 
 fetchData(); // Initial load uses cache if available

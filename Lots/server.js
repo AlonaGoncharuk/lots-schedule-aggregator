@@ -4,9 +4,17 @@ const cheerio = require('cheerio');
 const { chromium } = require('playwright');
 const fetch = (...args) => import('node-fetch').then(({ default: fn }) => fn(...args));
 const path = require('path');
+const logger = require('./utils/logger');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Middleware to generate session ID for each request
+app.use((req, res, next) => {
+  req.sessionId = logger.generateSessionId();
+  req.userId = req.ip || 'unknown';
+  next();
+});
 
 // Request management: queue system with concurrency limit
 let cachedData = null;
@@ -27,11 +35,11 @@ function processQueue() {
   }
   
   // Get next request from queue
-  const { resolve, reject, startTime } = scrapeQueue.shift();
+  const { resolve, reject, startTime, sessionId, userId } = scrapeQueue.shift();
   activeScrapes++;
   
   // Start the scrape
-  const scrapePromise = performScrape(startTime);
+  const scrapePromise = performScrape(startTime, sessionId, userId);
   currentScrapePromise = scrapePromise; // Store for sharing
   
   // Handle completion
@@ -53,9 +61,9 @@ function processQueue() {
 }
 
 // Perform the actual scraping
-async function performScrape(startTime) {
+async function performScrape(startTime, sessionId = 'unknown', userId = 'unknown') {
   try {
-    console.log(`Starting scrape (${activeScrapes}/${MAX_CONCURRENT_SCRAPES} active)...`);
+    logger.info(sessionId, userId, `Starting scrape (${activeScrapes}/${MAX_CONCURRENT_SCRAPES} active)...`);
     
     // Add timeout wrapper
     const scrapeWithTimeout = async (scraper, timeoutMs) => {
@@ -73,7 +81,7 @@ async function performScrape(startTime) {
     ]);
     
     const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`Scraped ${samurai.length} from 38Samurai, ${lords.length} from Lords in ${elapsedSeconds}s`);
+    logger.info(sessionId, userId, `Scraped ${samurai.length} from 38Samurai, ${lords.length} from Lords in ${elapsedSeconds}s`);
     const combined = sortShows([...samurai, ...lords]);
     const summary = summarizeByCountryMonth(combined);
     
@@ -86,8 +94,7 @@ async function performScrape(startTime) {
     return result;
   } catch (err) {
     const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.error(`Scrape error after ${elapsedSeconds}s:`, err);
-    console.error('Error stack:', err.stack);
+    logger.error(sessionId, userId, `Scrape error after ${elapsedSeconds}s: ${err.message}`, { stack: err.stack, error: err.message });
     throw err;
   }
 }
@@ -396,7 +403,7 @@ async function scrape38Samurai() {
     console.log(`38Samurai: Extracted ${results.length} shows`);
     return results;
   } catch (err) {
-    console.error('Error scraping 38Samurai:', err.message);
+    logger.error('unknown', 'system', `Error scraping 38Samurai: ${err.message}`, { stack: err.stack });
     return [];
   } finally {
     if (browser) await browser.close();
@@ -494,8 +501,7 @@ async function scrapeLordsCountriesList() {
     console.log(`Lords: Found ${uniqueLinks.length} unique country links: ${uniqueLinks.slice(0, 5).join(', ')}...`);
     return uniqueLinks;
   } catch (err) {
-    console.error('Error scraping Lords countries list:', err.message);
-    console.error(err.stack);
+    logger.error('unknown', 'system', `Error scraping Lords countries list: ${err.message}`, { stack: err.stack });
     return [];
   } finally {
     if (browser) await browser.close();
@@ -576,8 +582,7 @@ async function scrapeLordsCountry(url) {
     console.log(`Lords ${country}: Extracted ${shows.length} shows total`);
     return shows;
   } catch (err) {
-    console.error(`Error scraping Lords country ${url}:`, err.message);
-    console.error(err.stack);
+    logger.error('unknown', 'system', `Error scraping Lords country ${url}: ${err.message}`, { stack: err.stack, url });
     return [];
   } finally {
     if (browser) await browser.close();
@@ -651,6 +656,49 @@ app.get('/api/debug', async (_req, res) => {
   }
 });
 
+// API endpoint to get session logs
+app.get('/api/logs/:sessionId', (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const logs = logger.getSessionLogs(sessionId);
+    const logFilePath = logger.getSessionLogFilePath(sessionId);
+    
+    res.json({
+      sessionId,
+      logs,
+      logFilePath: logFilePath || null,
+      count: logs.length
+    });
+  } catch (err) {
+    logger.error(req.sessionId, req.userId, `Error retrieving logs: ${err.message}`, { stack: err.stack });
+    res.status(500).json({ error: 'Failed to retrieve logs', details: err.message });
+  }
+});
+
+// API endpoint to download session log file
+app.get('/api/logs/:sessionId/download', (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const logFilePath = logger.getSessionLogFilePath(sessionId);
+    
+    if (!logFilePath) {
+      return res.status(404).json({ error: 'Log file not found for this session' });
+    }
+    
+    res.download(logFilePath, `session-${sessionId}.log`, (err) => {
+      if (err) {
+        logger.error(req.sessionId, req.userId, `Error downloading log file: ${err.message}`, { stack: err.stack });
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Failed to download log file' });
+        }
+      }
+    });
+  } catch (err) {
+    logger.error(req.sessionId, req.userId, `Error downloading logs: ${err.message}`, { stack: err.stack });
+    res.status(500).json({ error: 'Failed to download logs', details: err.message });
+  }
+});
+
 app.get('/api/schedule', async (req, res) => {
   // Set a longer timeout for this endpoint
   req.setTimeout(300000); // 5 minutes
@@ -660,17 +708,17 @@ app.get('/api/schedule', async (req, res) => {
   const forceRefresh = req.query.refresh === 'true';
   const now = Date.now();
   if (!forceRefresh && cachedData && cacheTimestamp && (now - cacheTimestamp) < CACHE_TTL) {
-    console.log('Returning cached data');
+    logger.info(req.sessionId, req.userId, 'Returning cached data');
     return res.json(cachedData);
   }
   
-  console.log(`Request from ${req.ip}, User-Agent: ${req.get('user-agent')}`);
-  console.log(`Queue status: ${scrapeQueue.length} waiting, ${activeScrapes}/${MAX_CONCURRENT_SCRAPES} active, forceRefresh: ${forceRefresh}`);
+  logger.info(req.sessionId, req.userId, `Request from ${req.ip}, User-Agent: ${req.get('user-agent')}`);
+  logger.info(req.sessionId, req.userId, `Queue status: ${scrapeQueue.length} waiting, ${activeScrapes}/${MAX_CONCURRENT_SCRAPES} active, forceRefresh: ${forceRefresh}`);
   
   // If a scrape is already in progress, share that result instead of starting a new one
   // This prevents duplicate scrapes when multiple users click Update simultaneously
   if (currentScrapePromise && activeScrapes > 0) {
-    console.log('Scrape already in progress, sharing result with new request...');
+    logger.info(req.sessionId, req.userId, 'Scrape already in progress, sharing result with new request...');
     try {
       const sharedData = await Promise.race([
         currentScrapePromise,
@@ -681,7 +729,7 @@ app.get('/api/schedule', async (req, res) => {
       return res.json(sharedData);
     } catch (err) {
       // If shared scrape failed, fall through to queue system
-      console.log('Shared scrape failed, adding to queue...');
+      logger.warn(req.sessionId, req.userId, 'Shared scrape failed, adding to queue...', { error: err.message });
     }
   }
   
@@ -709,7 +757,9 @@ app.get('/api/schedule', async (req, res) => {
         clearTimeout(timeoutId);
         reject(err);
       }, 
-      startTime 
+      startTime,
+      sessionId: req.sessionId,
+      userId: req.userId
     });
     
     // Try to process queue (will start if under limit)
@@ -717,29 +767,48 @@ app.get('/api/schedule', async (req, res) => {
   }).catch(async (err) => {
     // If scrape failed, try to return stale cache as fallback
     if (cachedData && cacheTimestamp && (Date.now() - cacheTimestamp) < CACHE_TTL * 2) {
-      console.log('Scrape failed, returning stale cache as fallback...');
+      logger.warn(req.sessionId, req.userId, 'Scrape failed, returning stale cache as fallback...', { error: err.message });
       return { ...cachedData, fromCache: true, cacheAge: Math.round((Date.now() - cacheTimestamp) / 1000) };
     }
     throw err;
   });
   
   try {
-    res.json(scrapeData);
+    // Include session ID in response for error tracking
+    const responseData = { ...scrapeData, sessionId: req.sessionId };
+    res.json(responseData);
   } catch (err) {
     const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.error(`Error sending response after ${elapsedSeconds}s:`, err);
+    logger.error(req.sessionId, req.userId, `Error sending response after ${elapsedSeconds}s: ${err.message}`, { stack: err.stack, elapsedSeconds });
     
     if (!res.headersSent) {
       res.status(500).json({ 
         error: 'Failed to fetch schedules', 
         details: err.message, 
-        loadTime: elapsedSeconds 
+        loadTime: elapsedSeconds,
+        sessionId: req.sessionId
       });
     }
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server listening on http://0.0.0.0:${PORT}`);
-});
+// Only start server if not in test mode
+// Store server instance to allow cleanup in tests
+let server = null;
+if (process.env.NODE_ENV !== 'test' && !process.env.JEST_WORKER_ID) {
+  server = app.listen(PORT, '0.0.0.0', () => {
+    logger.info('system', 'server', `Server listening on http://0.0.0.0:${PORT}`);
+  });
+}
+
+// Export functions for testing
+module.exports = {
+  parseFlexibleDate,
+  parseDateLabel,
+  normalizeShow,
+  sortShows,
+  summarizeByCountryMonth,
+  app,
+  server // Export server for cleanup in tests
+};
 
